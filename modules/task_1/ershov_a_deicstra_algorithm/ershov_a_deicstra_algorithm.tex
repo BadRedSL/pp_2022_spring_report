@@ -1,0 +1,1227 @@
+\documentclass{report}
+
+\usepackage[warn]{mathtext}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage{tempora}
+\usepackage[12pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\usepackage{listings}
+\lstset{language=C++,
+        basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{red}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поиск кратчайших путей из одной вершины (алгоритм Дейкстры)»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381906-3 \\ Ершов А.В.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2022 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par В классических графах все рёбра считаются равноценными и длина пути соответствует количеству рёбер, которые он содержит. Однако часто в задаче каждому ребру соответствует некоторый параметр - длина ребра или стоимость прохождения по нему. В терминологии графов такой параметр называется весом ребра, а граф, содержащий взвешенные рёбра, взвешенным. Классический алгоритм для поиска кратчайших путей во взвешенном графе - алгоритм Дейкстры (по имени автора Эдгара Дейкстры). Он позволяет найти кратчайший путь от одной вершины графа до всех остальных за $O(MlogN)$ ($N,M$ - количество вершин и рёбер соответственно). Важной особенностью является тот факт, что алгоритм работает только для графов без рёбер отрицательного веса.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\par В данной работе требуется реализовать последовательную и параллельные версии алгоритма поиска всех кратчайших путей в графе, заданном матрицей весов (за основу следует взять алгоритм Дейкстры). А также провести эксперименты для сравнения времени работы всех алгоритмов и подтверждения их корректности. Сделать выводы об эффективности приведенных реализаций.
+\par В качестве технологий, для создания параллельной программы и проведения тестирования следует использовать Open Multi-Processing (OpenMP), Intel Threading Building Blocks(TBB), std::thread и библиотеку Google Test.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\par Каждой вершине приписывается вес – это вес пути от начальной вершины до данной. Также каждая вершина может быть выделена. Если вершина выделена, то путь от нее до начальной вершины кратчайший, если нет – то временный. Обходя граф, алгоритм считает для каждой вершины маршрут, и, если он оказывается кратчайшим, выделяет вершину. Весом данной вершины становится вес пути. Для всех соседей данной вершины алгоритм также рассчитывает вес, при этом ни при каких условиях не выделяя их. Алгоритм заканчивает свою работу, дойдя до конечной вершины, и весом кратчайшего пути становится вес конечной вершины.
+\par Пошаговый алгоритм:
+\begin{enumerate}
+\item Всем вершинам, за исключением первой, присваивается вес равный бесконечности, а первой вершине – 0.
+\item Все вершины не выделены.
+\item Первая вершина объявляется текущей.
+\item Вес всех невыделенных вершин пересчитывается по формуле: вес невыделенной вершины есть минимальное число из старого веса данной вершины, суммы веса текущей вершины и веса ребра, соединяющего текущую вершину с невыделенной.
+\item Среди невыделенных вершин ищется вершина с минимальным весом. Если таковая не найдена, то есть вес всех вершин равен бесконечности, то маршрут не существует. Следовательно, выход. Иначе, текущей становится найденная вершина. Она же выделяется.
+\item Если текущей вершиной оказывается конечная, то путь найден, и его вес есть вес конечной вершины.
+\item Переход на шаг 4.
+\item Если все кратчайшие пути найдены, то меняем начальную вершину.
+\item Переход на шаг 1.
+\end{enumerate}
+\newpage
+
+% Описание схемы распараллеливания
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+\par Распараллеливание программы происходит с помощью распределения данных и вычислительных операций между потоками. На вход параллельного алгоритма подается матрица весов. Общая схема распараллеливания достаточно проста: так как поиск кратчайшего расстояния от каждой вершины - операция независимая, мы равномерно разделяем эту задачу между отдельными потоками. После выполнения своей части алгоритма, каждый поток возврашает в главный поток результат своей работы, где и формируется выходной вектор значений кратчайших путей. 
+\par В текущей реализации программы с помощью OpenMP распределение происходит автоматически и равномерно, так как параметр schedule указан как static. В секции shared указываюстя переменные, общие для всех потоков. За создание параллельной секции и распараллеливание цикла отвечает директива \#pragma omp parallel for.
+\par В TBB распределение также происходит равномерно и автоматически. Отличительной чертой данной реализации является необходимость написания функтора - класса с перегруженным оператором (), а также указание диапазона blocked\_range, отвечающего за пропорции распределяемого объема вычислений между потоками.
+\par Распрараллеливание с использованием std::thread требует написания отдельной функции, которая будет передаваться в создаваемые в цикле for потоки. Данная функция проводит вычисления для вершин, передаваемых в нее, а результат записывает в общий для всех потоков вектор (для каждого потока используются свои индексы для записи). Распределение выполняемой потоками работы происходит в том же цикле, где и их создание. Для решения задачи, работа распределяется равномерно. Главный поток ожидает оканчания работы всех созданных потоков, после чего, если осталась какая-то нетронутая часть данных, довыполняет операции на ней самостоятельно. 
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Программа состоит из заголовочного файла deicstra\_<используемая технология>.h и двух файлов исходного кода deicstra\_<используемая технология>.cpp и main.cpp.
+\par В заголовочном файле находятся прототипы функций для последовательного и параллельных алгоритмов нахождения кратчайших путей, в deicstra\_<используемая технология>.cpp - их реализация, а файл main.cpp содержит тесты, проверяющие корректность и эффективность работы программы.
+\par Вспомогательная функция для всех версий алгоритма:
+\begin{lstlisting}
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top);
+\end{lstlisting}
+\par Функция для последовательного алгоритма:
+\begin{lstlisting}
+std::vector<int> getParallelDeicstra(const std::vector<std::vector<int>>& graf);
+\end{lstlisting}
+\par Функция для параллельного алгоритма:
+\begin{lstlisting}
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf);
+\end{lstlisting}
+\par Параметр graf нужен для передачи в алгоритм матрицы весов, top - передачи вспомогательной функции номера вершины от которой будут находиться кратчайшие пути.
+\par Помимо этого, есть еще функция позволяющая генерировать случайные матрицы весов. Она нужна для тестирования корректности работы программы.
+\begin{lstlisting}
+std::vector<std::vector<int>> getRandomVector(const int count);
+\end{lstlisting}
+\par Параметр count задает размерность генерируемой матрицы весов.
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+\par Проверку корректности работы программы обеспечивают 8 тестовых функций реализованных с помощью библиотеки "Google Test".
+\par Первые 3 проверяют отсутствие исключений при запуске алгоритма с теми или иными параметрами.
+\par Четвертый тест проверяет правильность работы работы алгоритма Дейкстры на матрице весов:
+\par
+$\begin{pmatrix}
+  0 & 7 & 9 & 0 & 0 & 14\\
+  7 & 0 & 10 & 15 & 0 & 0\\
+  9 & 10 & 0 & 11 & 0 & 2\\
+  0 & 15 & 11 & 0 & 6 & 0\\
+  0 & 0 & 0 & 6 & 0 & 9\\
+  14 & 0 & 2 & 0 & 9 & 0
+\end{pmatrix}$
+\par Функция должна получить следующий результат:
+\par
+$\begin{pmatrix}
+ 0 & 7 & 9 & 20 & 20 & 11\\
+ 7 & 0 &  10 & 15 & 21 & 12\\
+ 9 & 10 & 0 & 11 & 11 & 2\\
+ 20 & 15 & 11 & 0 & 6 & 13\\
+ 20 & 21 & 11 & 6 & 0 & 9\\
+ 11 & 12 & 2 & 13 & 9 & 0
+\end{pmatrix}$
+\par Пятый тест делает 2 запуска последовательного алгоритма и сравнивает результаты друг с другом. Входные и выходные данные полностью совпадают с предыдущим случаем.
+\par Шестой тест делает 2 запуска последовательного алгоритма и сравнивает результаты друг с другом на данных, сгенерированных функцией getRandomVector.
+\par Седьмой тест запускает последовательный и параллельный алгоритмы и сравнивает результаты друг с другом на данных, совпадающих с четвертым тестом.
+\par Восьмой тест запускает последовательный и параллельный алгоритмы и сравнивает результаты друг с другом на данных, сгенерированных функцией getRandomVector.
+\par Успешное прохождение всех тестов можно считать подтверждением корректности работы программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности работы параллельного алгоритма проводились на ПК со следующими характеристиками:
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 3600X;
+\item Оперативная память: 16 ГБ (DDR4), 3000 МГц;
+\item Операционная система: Windows 10 Home.
+\end{itemize}
+\par Замеры времени работы алгоритмов проводились на тестовой функции 8 (граф с 100 вершинами). Тестирование проводилось в режиме Release-x64. В параллельных реализациях создавалось 6 потоков.
+
+\par Результаты экспериментов представлены в Таблице.
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{| p{2cm} | p{3cm} | p{4cm} | p{2cm} |}
+\hline
+Версия алгоритма & Время работы (в секундах) & Ускорение  \\[5pt]
+\hline
+Sequential        & 0.0035067        & -         \\
+OpenMP        & 0.0008615        & 4.07         \\
+TBB       & 0.0011311        & 3.10      \\
+std::thread        & 0.0012987        & 2.70           \\
+
+\hline
+\end{tabular}
+\end{table}
+
+\newpage
+
+% Выводы из результатов экспериментов
+\section*{Выводы из результатов экспериментов}
+\addcontentsline{toc}{section}{Выводы из результатов экспериментов}
+Из данных, полученных в результате экспериментов, можно сделать вывод, что параллельные версии работают быстрее, чем последовательная. Во всех случаях удалось достичь ускорения более, чем в 2 раза, а наилучшие результаты показал OpenMP, улучшив производительность программы в 4 раза. Также стоит отметить, что ускорение оказалось меньше числа задействованных потоков, так как помимо нашей программы в системе работают и другие программы/сервисы/службы между которыми процессор распределяет свое время и ресурсы. 
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В рамках лабораторной работы были реализованы последовательный и параллельный алгоритмы поиска кратчайших путей в графе. Проведенные тесты показали корректность написанного кода, а замеры времени - эффективность параллельных версий.
+\newpage
+
+% Литература
+\section*{Литература}
+\addcontentsline{toc}{section}{Литература}
+\begin{enumerate}
+\item Алгоритм Дейкстры - Электронный ресурс. URL: \newline \url{https://habr.com/ru/post/111361/}
+\item OpenMP - Электронный ресурс. URL: \newline \url{https://www.openmp.org/wp-content/uploads/OpenMP-4.0-C.pdf}
+\item TBB - Электронный ресурс. URL: \newline \url{https://habr.com/ru/post/102670/}
+\item std::thread - Электронный ресурс. URL: \newline \url{https://en.cppreference.com/w/cpp/thread/thread}
+\item А.В. Сысоев, И.Б. Мееров, А.А. Сиднев «Средства разработки параллельных программ для систем с общей памятью. Библиотека Intel Threading Building Blocks». Нижний Новгород, 2007, 128 с.
+\end{enumerate} 
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\textbf{Последовательная версия}
+\newline
+\newline deicstra\_seq.h
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#ifndef MODULES_TASK_1_ERSHOV_A_DEICSTRA_ALGORITHM_DEICSTRA_SEQ_H_
+#define MODULES_TASK_1_ERSHOV_A_DEICSTRA_ALGORITHM_DEICSTRA_SEQ_H_
+
+#include <string>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const size_t count);
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf, const size_t top);
+
+#endif  // MODULES_TASK_1_ERSHOV_A_DEICSTRA_ALGORITHM_DEICSTRA_SEQ_H_
+
+
+\end{lstlisting}
+main.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include <gtest/gtest.h>
+
+#include <vector>
+
+#include "./deicstra_seq.h"
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_Any_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getSequentialDeicstra(graf, 0));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const int count = graf.size();
+
+  ASSERT_NO_THROW(getSequentialDeicstra(graf, count - 1));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_First_Top) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const std::vector<int> trueResult = {0, 7, 9, 20, 20, 11};
+  bool check = true;
+  const size_t count = graf.size();
+
+  const std::vector<int> algorithmResult = getSequentialDeicstra(graf, 0);
+  for (size_t i = 0; i < count; ++i) {
+    if (trueResult[i] != algorithmResult[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_Last_Top) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const std::vector<int> trueResult = {11, 12, 2, 13, 9, 0};
+  bool check = true;
+  const size_t count = graf.size();
+
+  const std::vector<int> algorithmResult =
+      getSequentialDeicstra(graf, count - 1);
+  for (size_t i = 0; i < count; ++i) {
+    if (trueResult[i] != algorithmResult[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Top_Two_Times_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const size_t count = graf.size();
+
+  const std::vector<int> algorithmResultFirst =
+      getSequentialDeicstra(graf, count - 1);
+
+  const std::vector<int> algorithmResultSecond =
+      getSequentialDeicstra(graf, count - 1);
+
+  for (size_t i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Top_Two_Times_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(10);
+  bool check = true;
+  const size_t count = graf.size();
+
+  const std::vector<int> algorithmResultFirst =
+      getSequentialDeicstra(graf, count - 1);
+
+  const std::vector<int> algorithmResultSecond =
+      getSequentialDeicstra(graf, count - 1);
+
+  for (size_t i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+
+\end{lstlisting}
+deicstra\_seq.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include "./deicstra_seq.h"
+
+#include <algorithm>
+#include <random>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const size_t count) {
+  std::vector<std::vector<int>> graf(count, std::vector<int>(count));
+  std::random_device dev;
+  std::mt19937 gen(0);
+  for (size_t i = 0; i < count; ++i) {
+    graf[i][i] = 0;
+    for (size_t j = i + 1; j < count; ++j) {
+      graf[i][j] = gen() % 100;
+      graf[j][i] = graf[i][j];
+    }
+  }
+  return graf;
+}
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf, const size_t top) {
+  const size_t count = graf.size();
+  std::vector<bool> visitedTops(count);
+  std::vector<int> dist(count, 10000);
+  dist[top] = 0;
+  int min_dist = 0;
+  int min_vertex = top;
+
+  while (min_dist < 10000) {
+    size_t i = min_vertex;
+    visitedTops[i] = true;
+    for (size_t j = 0; j < count; ++j)
+      if ((dist[i] + graf[i][j] < dist[j]) && (graf[i][j] != 0))
+        dist[j] = dist[i] + graf[i][j];
+    min_dist = 10000;
+    for (size_t j = 0; j < count; ++j)
+      if (!visitedTops[j] && dist[j] < min_dist) {
+        min_dist = dist[j];
+        min_vertex = j;
+      }
+  }
+
+  return dist;
+}
+
+\end{lstlisting}
+
+\textbf{OpenMP version}
+\newline
+\newline deicstra\_omp.h
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#ifndef MODULES_TASK_2_ERSHOV_A_DEICSTRA_ALGORITHM_OMP_DEICSTRA_OMP_H_
+#define MODULES_TASK_2_ERSHOV_A_DEICSTRA_ALGORITHM_OMP_DEICSTRA_OMP_H_
+
+#include <string>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const int count);
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top);
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf);
+
+std::vector<int> getParallelDeicstra(const std::vector<std::vector<int>>& graf);
+
+#endif  // MODULES_TASK_2_ERSHOV_A_DEICSTRA_ALGORITHM_OMP_DEICSTRA_OMP_H_
+
+\end{lstlisting}
+deicstra\_omp.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include "./deicstra_omp.h"
+
+#include <omp.h>
+
+#include <algorithm>
+#include <random>
+#include <utility>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const int count) {
+  std::vector<std::vector<int>> graf(count, std::vector<int>(count));
+  std::mt19937 gen(0);
+  for (int i = 0; i < count; ++i) {
+    graf[i][i] = 0;
+    for (int j = i + 1; j < count; ++j) {
+      graf[i][j] = gen() % 100;
+      graf[j][i] = graf[i][j];
+    }
+  }
+  return graf;
+}
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top) {
+  const int count = graf.size();
+  std::vector<bool> visitedTops(count);
+  std::vector<int> dist(count, 10000);
+  dist[top] = 0;
+  int min_dist = 0;
+  int min_vertex = top;
+
+  while (min_dist < 10000) {
+    int i = min_vertex;
+    visitedTops[i] = true;
+    for (int j = 0; j < count; ++j)
+      if ((dist[i] + graf[i][j] < dist[j]) && (graf[i][j] != 0))
+        dist[j] = dist[i] + graf[i][j];
+    min_dist = 10000;
+    for (int j = 0; j < count; ++j)
+      if (!visitedTops[j] && dist[j] < min_dist) {
+        min_dist = dist[j];
+        min_vertex = j;
+      }
+  }
+
+  return dist;
+}
+
+std::vector<int> getParallelDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  int top = 0;
+  const int count = graf.size();
+  std::vector<int> result(count * count, 0);
+  int numThreads = 6;
+
+#pragma omp parallel for shared(count, result, graf) private(top) \
+    schedule(static) num_threads(numThreads)
+  for (top = 0; top < count; ++top) {
+    auto tmp = getDeicstra(graf, top);
+    for (int i = 0; i < count; ++i) {
+      result[top * count + i] = tmp[i];
+    }
+  }
+  return result;
+}
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  int top = 0;
+  const int count = graf.size();
+  std::vector<int> result(count * count, 0);
+  for (top = 0; top < count; ++top) {
+    auto tmp = getDeicstra(graf, top);
+    for (int i = 0; i < count; ++i) {
+      result[top * count + i] = tmp[i];
+    }
+  }
+  return result;
+}
+
+
+\end{lstlisting}
+main.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include <gtest/gtest.h>
+#include <omp.h>
+
+// #include <iostream>
+#include <vector>
+
+#include "./deicstra_omp.h"
+
+TEST(Sequential_Deicstra, Test_Get_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getDeicstra(graf, 0));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getSequentialDeicstra(graf));
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getParallelDeicstra(graf));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const std::vector<int> trueResult = {
+      0,  7,  9,  20, 20, 11, 7,  0,  10, 15, 21, 12, 9,  10, 0, 11, 11, 2,
+      20, 15, 11, 0,  6,  13, 20, 21, 11, 6,  0,  9,  11, 12, 2, 13, 9,  0};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResult = getSequentialDeicstra(graf);
+  for (int i = 0; i < count; ++i) {
+    if (trueResult[i] != algorithmResult[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(5);
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(100);
+  bool check = true;
+  const int count = graf.size();
+   double t1, t2, dt;
+
+   t1 = omp_get_wtime();
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+   t2 = omp_get_wtime();
+   dt = t2 - t1;
+   std::cout << "Sequential time = " << dt << std::endl;
+
+   t1 = omp_get_wtime();
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+   t2 = omp_get_wtime();
+   dt = t2 - t1;
+   std::cout << "Parallel time = " << dt << std::endl;
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+\end{lstlisting}
+
+\textbf{TBB version}
+\newline
+\newline deicstra\_tbb.h
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#ifndef MODULES_TASK_3_ERSHOV_A_DEICSTRA_ALGORITHM_TBB_DEICSTRA_TBB_H_
+#define MODULES_TASK_3_ERSHOV_A_DEICSTRA_ALGORITHM_TBB_DEICSTRA_TBB_H_
+
+#include <tbb/tbb.h>
+
+#include <string>
+#include <vector>
+
+class Deicstor {
+ private:
+  const std::vector<std::vector<int>>& graf;
+  std::vector<int>* result;
+
+ public:
+  Deicstor(const std::vector<std::vector<int>>& _graf,
+           std::vector<int>* _result)
+      : graf(_graf), result(_result) {}
+
+  void operator()(const tbb::blocked_range<int>& r) const;
+};
+
+std::vector<std::vector<int>> getRandomVector(const int count);
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top);
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf);
+
+std::vector<int> getParallelDeicstra(const std::vector<std::vector<int>>& graf);
+
+#endif  // MODULES_TASK_3_ERSHOV_A_DEICSTRA_ALGORITHM_TBB_DEICSTRA_TBB_H_
+
+
+\end{lstlisting}
+deicstra\_tbb.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include "./deicstra_tbb.h"
+
+#include <tbb/tbb.h>
+
+#include <algorithm>
+#include <random>
+#include <utility>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const int count) {
+  std::vector<std::vector<int>> graf(count, std::vector<int>(count));
+  std::mt19937 gen(0);
+  for (int i = 0; i < count; ++i) {
+    graf[i][i] = 0;
+    for (int j = i + 1; j < count; ++j) {
+      graf[i][j] = gen() % 100;
+      graf[j][i] = graf[i][j];
+    }
+  }
+  return graf;
+}
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top) {
+  const int count = graf.size();
+  std::vector<bool> visitedTops(count);
+  std::vector<int> dist(count, 10000);
+  dist[top] = 0;
+  int min_dist = 0;
+  int min_vertex = top;
+
+  while (min_dist < 10000) {
+    int i = min_vertex;
+    visitedTops[i] = true;
+    for (int j = 0; j < count; ++j)
+      if ((dist[i] + graf[i][j] < dist[j]) && (graf[i][j] != 0))
+        dist[j] = dist[i] + graf[i][j];
+    min_dist = 10000;
+    for (int j = 0; j < count; ++j)
+      if (!visitedTops[j] && dist[j] < min_dist) {
+        min_dist = dist[j];
+        min_vertex = j;
+      }
+  }
+
+  return dist;
+}
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  int top = 0;
+  const int count = graf.size();
+  std::vector<int> result(count * count, 0);
+  for (top = 0; top < count; ++top) {
+    auto tmp = getDeicstra(graf, top);
+    for (int i = 0; i < count; ++i) {
+      result[top * count + i] = tmp[i];
+    }
+  }
+  return result;
+}
+
+std::vector<int> getParallelDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  int numThreads = 6;
+  int count = graf.size();
+  int grainSize = count / numThreads;
+  std::vector<int> result(graf.size() * graf.size(), 0);
+  tbb::task_scheduler_init init(numThreads);
+
+  tbb::parallel_for(tbb::blocked_range<int>(0, count, grainSize),
+                    Deicstor(graf, &result));
+
+  return result;
+}
+
+void Deicstor::operator()(const tbb::blocked_range<int>& r) const {
+  int begin = r.begin();
+  int end = r.end();
+  int count = graf.size();
+  for (int top = begin; top < end; ++top) {
+    auto tmp = getDeicstra(graf, top);
+    for (int i = 0; i < count; ++i) {
+      (*result)[top * count + i] = tmp[i];
+    }
+  }
+}
+
+
+\end{lstlisting}
+main.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include <gtest/gtest.h>
+
+ #include <chrono>
+ #include <iostream>
+#include <vector>
+
+#include "./deicstra_tbb.h"
+
+TEST(Sequential_Deicstra, Test_Get_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getDeicstra(graf, 0));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getSequentialDeicstra(graf));
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getParallelDeicstra(graf));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const std::vector<int> trueResult = {
+      0,  7,  9,  20, 20, 11, 7,  0,  10, 15, 21, 12, 9,  10, 0, 11, 11, 2,
+      20, 15, 11, 0,  6,  13, 20, 21, 11, 6,  0,  9,  11, 12, 2, 13, 9,  0};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResult = getSequentialDeicstra(graf);
+  for (int i = 0; i < count; ++i) {
+    if (trueResult[i] != algorithmResult[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(5);
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(200);
+  bool check = true;
+  const int count = graf.size();
+
+   auto t1 = std::chrono::system_clock::now();
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+   auto t2 = std::chrono::system_clock::now();
+   auto dt = t2 - t1;
+   std::cout << "Sequential time = " << dt.count() << std::endl;
+
+   t1 = std::chrono::system_clock::now();
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+   t2 = std::chrono::system_clock::now();
+   dt = t2 - t1;
+   std::cout << "Parallel time = " << dt.count() << std::endl;
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+\end{lstlisting}
+
+\textbf{std::thread version}
+\newline
+\newline deicstra\_std.h
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#ifndef MODULES_TASK_4_ERSHOV_A_DEICSTRA_ALGORITHM_STD_DEICSTRA_STD_H_
+#define MODULES_TASK_4_ERSHOV_A_DEICSTRA_ALGORITHM_STD_DEICSTRA_STD_H_
+
+#include <string>
+#include <vector>
+
+std::vector<std::vector<int>> getRandomVector(const int count);
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top);
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf);
+
+void getThreadIteration(const std::vector<std::vector<int>>& graf,
+                        const int start, const int numTops,
+                        std::vector<int>* result);
+
+std::vector<int> getParallelDeicstra(const std::vector<std::vector<int>>& graf);
+
+#endif  // MODULES_TASK_4_ERSHOV_A_DEICSTRA_ALGORITHM_STD_DEICSTRA_STD_H_
+
+
+\end{lstlisting}
+deicstra\_std.cpp
+\begin{lstlisting}
+// Copyright 2022 Ershov Aleksey
+#include "./deicstra_std.h"
+
+#include <algorithm>
+#include <random>
+#include <utility>
+#include <vector>
+
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+std::vector<std::vector<int>> getRandomVector(const int count) {
+  std::vector<std::vector<int>> graf(count, std::vector<int>(count));
+  std::mt19937 gen(0);
+  for (int i = 0; i < count; ++i) {
+    graf[i][i] = 0;
+    for (int j = i + 1; j < count; ++j) {
+      graf[i][j] = gen() % 100;
+      graf[j][i] = graf[i][j];
+    }
+  }
+  return graf;
+}
+
+std::vector<int> getDeicstra(const std::vector<std::vector<int>>& graf,
+                             const int top) {
+  const int count = graf.size();
+  std::vector<bool> visitedTops(count);
+  std::vector<int> dist(count, 10000);
+  dist[top] = 0;
+  int min_dist = 0;
+  int min_vertex = top;
+
+  while (min_dist < 10000) {
+    int i = min_vertex;
+    visitedTops[i] = true;
+    for (int j = 0; j < count; ++j)
+      if ((dist[i] + graf[i][j] < dist[j]) && (graf[i][j] != 0))
+        dist[j] = dist[i] + graf[i][j];
+    min_dist = 10000;
+    for (int j = 0; j < count; ++j)
+      if (!visitedTops[j] && dist[j] < min_dist) {
+        min_dist = dist[j];
+        min_vertex = j;
+      }
+  }
+
+  return dist;
+}
+
+std::vector<int> getSequentialDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  int top = 0;
+  const int count = graf.size();
+  std::vector<int> result(count * count, 0);
+  for (top = 0; top < count; ++top) {
+    auto tmp = getDeicstra(graf, top);
+    for (int i = 0; i < count; ++i) {
+      result[top * count + i] = tmp[i];
+    }
+  }
+  return result;
+}
+
+void getThreadIteration(const std::vector<std::vector<int>>& graf,
+                        const int start, const int numTops,
+                        std::vector<int>* result) {
+  for (int i = start; i < start + numTops; ++i) {
+    auto tmp = getDeicstra(graf, i);
+    int count = graf.size();
+    for (int j = 0; j < count; ++j) {
+      (*result)[i * count + j] = tmp[j];
+    }
+  }
+}
+
+std::vector<int> getParallelDeicstra(
+    const std::vector<std::vector<int>>& graf) {
+  std::vector<std::thread> vThread;
+  int start = 0;
+  const int count = graf.size();
+  const int numThreads = 6;
+  const int numTops = count / numThreads;
+  std::vector<int> result(count * count, 0);
+
+  for (int i = 0; i < numThreads; ++i) {
+    vThread.push_back(
+        std::thread(getThreadIteration, graf, start, numTops, &result));
+    start += numTops;
+  }
+
+  if (numTops * numThreads != count) {
+    vThread.push_back(std::thread(getThreadIteration, graf, start,
+                                  count - (numTops * numThreads), &result));
+  }
+
+  for (int i = 0; i < numThreads; ++i) {
+    vThread[i].join();
+  }
+  if (numTops * numThreads != count) {
+    vThread[numThreads].join();
+  }
+  return result;
+}
+
+
+\end{lstlisting}
+main.cpp
+\begin{lstlisting}
+
+// Copyright 2022 Ershov Aleksey
+#include <gtest/gtest.h>
+
+ #include <chrono>
+ #include <iostream>
+#include <vector>
+
+#include "./deicstra_std.h"
+
+TEST(Sequential_Deicstra, Test_Get_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getDeicstra(graf, 0));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getSequentialDeicstra(graf));
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Static_Data_No_Throw) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+
+  ASSERT_NO_THROW(getParallelDeicstra(graf));
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_With_Static_Data) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  const std::vector<int> trueResult = {
+      0,  7,  9,  20, 20, 11, 7,  0,  10, 15, 21, 12, 9,  10, 0, 11, 11, 2,
+      20, 15, 11, 0,  6,  13, 20, 21, 11, 6,  0,  9,  11, 12, 2, 13, 9,  0};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResult = getSequentialDeicstra(graf);
+  for (int i = 0; i < count; ++i) {
+    if (trueResult[i] != algorithmResult[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Sequential_Deicstra, Test_Sequential_Deicstra_Two_Times_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(5);
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultFirst = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultSecond = getSequentialDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultFirst[i] != algorithmResultSecond[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Static) {
+  const std::vector<std::vector<int>> graf = {
+      {0, 7, 9, 0, 0, 14},  {7, 0, 10, 15, 0, 0}, {9, 10, 0, 11, 0, 2},
+      {0, 15, 11, 0, 6, 0}, {0, 0, 0, 6, 0, 9},   {14, 0, 2, 0, 9, 0}};
+  bool check = true;
+  const int count = graf.size();
+
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+TEST(Parallel_Deicstra, Test_Parallel_Deicstra_With_Seq_Random) {
+  const std::vector<std::vector<int>> graf = getRandomVector(200);
+  bool check = true;
+  const int count = graf.size();
+
+   auto t1 = std::chrono::system_clock::now();
+  const std::vector<int> algorithmResultSeq = getSequentialDeicstra(graf);
+   auto t2 = std::chrono::system_clock::now();
+   auto dt = t2 - t1;
+   std::cout << "Sequential time = " << dt.count() << std::endl;
+
+   t1 = std::chrono::system_clock::now();
+  const std::vector<int> algorithmResultRarallel = getParallelDeicstra(graf);
+   t2 = std::chrono::system_clock::now();
+   dt = t2 - t1;
+   std::cout << "Parallel time = " << dt.count() << std::endl;
+
+  for (int i = 0; i < count; ++i) {
+    if (algorithmResultSeq[i] != algorithmResultRarallel[i]) {
+      check = false;
+    }
+  }
+
+  ASSERT_EQ(check, true);
+}
+
+
+\end{lstlisting}
+\end{document}
